@@ -1,0 +1,103 @@
+# Foreman: pipeline orchestrator. Template from the "pipeline" plugin (skills/foreman).
+# Replace <OWNER> below. Foreman's `setup` command fills this in for you.
+name: Foreman
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "start | next | accept | feedback | gate-check | status"
+        required: true
+        default: next
+      epic:
+        description: "Epic ID, e.g. E01 (blank = any epic In progress)"
+        required: false
+        default: ""
+      previous:
+        description: "Result of the previous agent run (success | failure)"
+        required: false
+        default: ""
+  pull_request:
+    types: [closed]                 # design PR merged → start
+  pull_request_review:
+    types: [submitted]              # epic PR approved → accept; changes requested → feedback
+  issue_comment:
+    types: [created]                # "/foreman next E01" or "/foreman feedback E01"
+  push:
+    branches: [main]
+    paths: ["docs/plan.md"]         # gate results → gate-check
+  schedule:
+    - cron: "17 */3 * * *"          # resume after failures or usage limits
+
+concurrency:
+  group: foreman                    # shared with agent.yml: one pipeline step at a time
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  id-token: write
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      command: ${{ steps.r.outputs.command }}
+      epic: ${{ steps.r.outputs.epic }}
+    steps:
+      - id: r
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_COMMAND: ${{ github.event.inputs.command }}
+          IN_EPIC: ${{ github.event.inputs.epic }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          COMMENT: ${{ github.event.comment.body }}
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          cmd=""; epic=""
+          id_from_branch() { echo "$1" | sed -nE 's#^(design|epic)/(e[0-9]+)-.*#\2#p' | tr a-z A-Z; }
+          case "$EVENT" in
+            workflow_dispatch) cmd="$IN_COMMAND"; epic="$IN_EPIC" ;;
+            schedule) cmd="next" ;;
+            push) cmd="gate-check" ;;
+            pull_request)
+              if [ "$PR_MERGED" = "true" ] && echo "$PR_LABELS" | grep -q '"design"'; then
+                cmd="start"; epic="$(id_from_branch "$PR_HEAD")"; fi ;;
+            pull_request_review)
+              if [ "$ACTOR" = "$OWNER" ] && [[ "$PR_HEAD" == epic/* ]]; then
+                epic="$(id_from_branch "$PR_HEAD")"
+                [ "$REVIEW_STATE" = "approved" ] && cmd="accept"
+                [ "$REVIEW_STATE" = "changes_requested" ] && cmd="feedback"
+              fi ;;
+            issue_comment)
+              if [ "$ACTOR" = "$OWNER" ] && [[ "$COMMENT" =~ ^/foreman[[:space:]]+(next|feedback|status)([[:space:]]+(E[0-9]+))? ]]; then
+                cmd="${BASH_REMATCH[1]}"; epic="${BASH_REMATCH[3]}"; fi ;;
+          esac
+          echo "command=$cmd" >> "$GITHUB_OUTPUT"
+          echo "epic=$epic" >> "$GITHUB_OUTPUT"
+          echo "Routed $EVENT → '${cmd:-none}' ${epic}"
+
+  foreman:
+    needs: route
+    if: needs.route.outputs.command != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
+          plugins: "pipeline@abdu-agents"
+          prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --unattended"
+          claude_args: '--max-turns 80 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'

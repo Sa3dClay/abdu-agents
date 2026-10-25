@@ -1,0 +1,70 @@
+# Pipeline agent: runs ONE agent (Anvil, Assay or Atlas) in a fresh context, then hands back to Foreman.
+# Template from the "pipeline" plugin (skills/foreman). Replace <OWNER> and the toolchain block.
+name: Pipeline agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "anvil | assay | atlas"
+        required: true
+      args:
+        description: "Task ID (E01-T03), or for Atlas: design-next | amend E01"
+        required: true
+      epic:
+        description: "Epic ID"
+        required: false
+        default: ""
+      ref:
+        description: "Branch to check out"
+        required: true
+
+concurrency:
+  group: foreman
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  id-token: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      # ---- Toolchain block: project-specific. Keep in sync with the project's CI. ----
+      # Example for an Expo / React Native + Kotlin project:
+      # - uses: actions/setup-node@v4
+      #   with: { node-version-file: .nvmrc, cache: npm }
+      # - uses: actions/setup-java@v4
+      #   with: { distribution: temurin, java-version: "17" }
+      # - uses: gradle/actions/setup-gradle@v4
+      # - run: npm ci
+      # ---------------------------------------------------------------------------
+
+      - id: agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
+          plugins: "pipeline@abdu-agents"
+          prompt: "/pipeline:${{ github.event.inputs.agent }} ${{ github.event.inputs.args }} --unattended"
+          claude_args: '--max-turns 200 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'
+
+      - name: Hand back to Foreman
+        if: always()
+        run: |
+          gh workflow run foreman.yml \
+            -f command=next \
+            -f epic="${{ github.event.inputs.epic }}" \
+            -f previous="${{ steps.agent.outcome }}"

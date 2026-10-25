@@ -1,0 +1,17 @@
+{
+  "name": "abdu-agents",
+  "owner": {
+    "name": "Abdu"
+  },
+  "metadata": {
+    "description": "Abdu's agent plugins."
+  },
+  "plugins": [
+    {
+      "name": "pipeline",
+      "source": "./plugins/pipeline",
+      "description": "Idea-to-build agent pipeline: Lens (idea refinement), Atlas (planning), Anvil (implementation), Assay (review and testing) and Foreman (GitHub Actions orchestration).",
+      "version": "0.1.0"
+    }
+  ]
+}
