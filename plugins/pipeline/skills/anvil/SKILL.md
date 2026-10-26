@@ -146,10 +146,13 @@ Anything worth a closer look: tricky logic, assumptions, areas with thin test co
 Foreman runs you in CI with `--unattended` in the arguments. Nobody is there to answer, so:
 
 - **Never ask a question.** Where interactive mode would ask, decide if it's a small call (and log it), or set `Blocked` with the exact question and stop.
-- **The runner is a disposable sandbox**, not the founder's computer. You may run the setup lines in the task's "Before you start" (installs the task lists) and the project's build and test commands. Still never: add dependencies the task doesn't list, deploy, publish, use production secrets, push to the default branch, or merge.
+- **The runner is a disposable sandbox**, not the founder's computer. You may run the setup lines in the task's "Before you start" (installs and generators; pass non-interactive flags, or `CI=1` with stdin closed), the project's build and test commands, and installs a check needs to run. Commit the resulting manifest, lockfile or generated files on your branch. This applies even if `CLAUDE.md` forbids installs: those rules protect the founder's computer, not the runner.
+- **Packages:** you may add or fix a package the task names, or one it plainly requires (a missing peer dependency, types package or SDK-matched version); pin to the version the framework expects (e.g. `npx expo install`) and log it under Deviations. Choosing a new library the task doesn't imply is a product/architecture decision: block.
+- **Audit after every install or update.** Run the stack's audit (`npm audit --json` for npm) and record the counts by severity in the report, noting which are new. If a new `high` or `critical` appears, try the non-breaking fix (`npm audit fix`, never `--force`) and audit again. If a `high`/`critical` is still there in a production dependency, set `Blocked` with the advisory, the package path and the options (that's the founder's call). In dev-only dependencies, list it as a note for the reviewer and continue.
+- **Still never:** deploy, publish, use production secrets, print secrets, push to the default branch, or merge.
 - **Git:** push your branch to `origin`. Foreman opens and merges pull requests.
 - **Finish by writing state to the files** (task Status and report, `plan.md` mirror) and committing it on your branch. Foreman reads only the files and git, never your chat output.
-- **Before you start, founder-only lines** (accounts, keys, secrets, store consoles) can't be done by you. If one isn't visibly done, set `Blocked` ("needs founder: …") and stop.
+- **Before you start, founder-only lines** (accounts, keys, secrets, store consoles) can't be done by you. Treat them as done if the task's "Before you start" carries a "Done" note, or if `gh secret list` shows the named secrets (names only, never values). Only if neither confirms them, set `Blocked` ("needs founder: …") and stop.
 - **Interrupted earlier?** If the task is `In progress` and the branch exists on `origin`, resume from its last commit.
 
 ---

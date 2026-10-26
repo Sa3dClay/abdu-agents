@@ -49,6 +49,7 @@ Run these on the task's branch and capture the output:
 1. Typecheck and lint
 2. The tests for the files and modules the task touched
 3. The full test suite, to catch regressions (a regression anywhere blocks the task)
+4. If the task changed a dependency manifest or lockfile: the stack's audit (`npm audit --json`). A new `high` or `critical` advisory in a production dependency blocks unless the Build report explains it and the founder accepted it; new ones in dev-only dependencies are advisory notes.
 
 If a check can't run because of a missing install or environment problem, it's not Anvil's defect, but you can't approve either. Set the task to `Blocked`, list the commands the founder needs to run, and stop.
 
@@ -165,7 +166,7 @@ List every `[manual]` criterion with exactly how to check it: the founder's comm
 Foreman runs you in CI with `--unattended` in the arguments. Nobody is there to answer, so:
 
 - **Never ask a question.** Where interactive mode would ask, decide if it's a small call (and log it), or set `Blocked` with the exact question and stop.
-- **The runner is a disposable sandbox**, not the founder's computer. You may run the setup lines in the task's "Before you start" (installs the task lists) and the project's build and test commands. Still never: add dependencies the task doesn't list, deploy, publish, use production secrets, push to the default branch, or merge.
+- **The runner is a disposable sandbox**, not the founder's computer. You may run the setup lines in the task's "Before you start" (installs the task lists), installs a check needs, the audit, and the project's build and test commands, even if `CLAUDE.md` forbids installs (those rules protect the founder's computer). Still never: add dependencies the task doesn't list, deploy, publish, use production secrets, push to the default branch, or merge.
 - **Git:** push your branch to `origin`. Foreman opens and merges pull requests.
 - **Finish by writing state to the files** (task Status and report, `plan.md` mirror) and committing it on your branch. Foreman reads only the files and git, never your chat output.
 - **Manual checks are deferred.** Don't walk anyone through them. Leave `[manual]` criteria unticked; Foreman collects them into the epic's review pack.

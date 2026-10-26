@@ -91,7 +91,11 @@ Otherwise decide, in this order, and take the **first** action that applies:
 gh workflow run agent.yml -f agent=anvil -f args="E01-T03" -f epic=E01 -f ref=<branch>
 ```
 
-Use `args="E01-T03"` for Anvil or Assay, `args="design-next"` or `args="amend E01"` for Atlas. Log the dispatch.
+Use `args="E01-T03"` for Anvil or Assay, `args="design-next"` or `args="amend E01"` for Atlas.
+
+**Stale task branches:** before dispatching `anvil` for a `Ready` task (a new build), check whether its branch already exists on `origin` (left by an earlier run that blocked). If its changes against the epic branch touch only `docs/` (a Blocked report, no code), delete it (`git push origin --delete <branch>`) and note that in the log line. If it contains code, keep it and dispatch on that branch instead.
+
+Log the dispatch.
 
 Then, if an issue `Foreman: E0X needs you` is open for this epic:
 - **No task in the epic is `Blocked` any more:** close it with `gh issue close <n> --comment "Resumed: <agent> started on <task> (<run link>)."`
