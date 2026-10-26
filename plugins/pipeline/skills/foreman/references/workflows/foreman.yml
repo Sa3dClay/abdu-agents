@@ -106,9 +106,11 @@ jobs:
         with:
           fetch-depth: 0
       - uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_EFFORT_LEVEL: low   # Foreman only routes; agents do the heavy work
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
           plugins: "pipeline@abdu-agents"
           prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --unattended"
-          claude_args: '--max-turns 80 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'
+          claude_args: '--model claude-sonnet-5-5 --max-turns 80 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'
