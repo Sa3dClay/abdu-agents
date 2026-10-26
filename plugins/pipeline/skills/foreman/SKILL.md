@@ -37,6 +37,7 @@ In unattended mode, never ask questions. Anything that needs the founder goes in
 - **Commit your state changes** on the epic branch with messages like `foreman: E01 status`.
 - **Log every dispatch** by appending a line to `docs/foreman/<epic-id>-runs.md`: date, command, agent, task, run link, previous result.
 - **Use `gh`** for GitHub (PRs, issues, labels, workflow dispatch). `GH_TOKEN` is set by the workflow.
+- **Close the issues you opened once they're resolved**, with a one-line comment saying what resolved it and a link (run, commit or PR). Only close an issue when its cause is actually gone in the files, never just because the founder commented. If one is still open but only partly resolved, update its body and leave it open. Never reopen an issue the founder closed; open a new one if the problem comes back. The triggers are listed in `next`, the review pack and `gate-check`.
 
 ---
 
@@ -82,7 +83,7 @@ Otherwise decide, in this order, and take the **first** action that applies:
 6. **A task branch was pushed with `In review` but has no PR:** open the PR into the epic branch (title `E0X-TNN: <title>`, body = its Build report), then dispatch `assay`.
 7. **Nothing can run:**
    - **Every task is `Verified` or `Done`:** build the **review pack** (below) and stop.
-   - **Some tasks are `Blocked`, and every remaining task depends on one of them:** open or update the issue `Foreman: E0X needs you` (label `foreman`). List each blocked task, its exact question or missing item, and what is already Verified. @mention the owner, set the epic to `Blocked` in `plan.md`, commit, and stop.
+   - **Some tasks are `Blocked`, and every remaining task depends on one of them:** open or update the issue `Foreman: E0X needs you` (label `foreman`; reuse the open one, never open a second). List each blocked task, its exact question or missing item, and what is already Verified. @mention the owner, set the epic to `Blocked` in `plan.md`, commit, and stop.
 
 **Dispatching an agent:**
 
@@ -90,11 +91,17 @@ Otherwise decide, in this order, and take the **first** action that applies:
 gh workflow run agent.yml -f agent=anvil -f args="E01-T03" -f epic=E01 -f ref=<branch>
 ```
 
-Use `args="E01-T03"` for Anvil or Assay, `args="design-next"` or `args="amend E01"` for Atlas. Log the dispatch, then exit.
+Use `args="E01-T03"` for Anvil or Assay, `args="design-next"` or `args="amend E01"` for Atlas. Log the dispatch.
+
+Then, if an issue `Foreman: E0X needs you` is open for this epic:
+- **No task in the epic is `Blocked` any more:** close it with `gh issue close <n> --comment "Resumed: <agent> started on <task> (<run link>)."`
+- **Some tasks are still `Blocked`:** update its list so it names only the tasks still blocked, and comment which ones were resolved.
+
+Then exit.
 
 ## Review pack
 
-1. Dispatch the project CI on the epic branch (`gh workflow run <ci file> --ref epic/...`), and wait for it to finish (`gh run watch`). If it fails, open the issue `Foreman: E0X build failed`, link the run, and stop.
+1. Dispatch the project CI on the epic branch (`gh workflow run <ci file> --ref epic/...`), and wait for it to finish (`gh run watch`). If it fails, open or update the issue `Foreman: E0X build failed`, link the run, and stop. If it passes and that issue is open, close it with a comment linking the passing run.
 2. Open or update a PR from the epic branch into the default branch: title `Epic E0X: <title>`, label `epic`, with this body:
 
 ```markdown
@@ -150,8 +157,8 @@ Dispatch `atlas` with `args="amend E0X"` on the epic branch, and set the epic ba
 
 Read the gate rows in `plan.md` on the default branch:
 
-- **Newly `Passed`:** dispatch `atlas design-next`.
-- **Newly `Failed`:** open an issue recommending a re-plan with Atlas (or a return to Lens), and do nothing else.
+- **Newly `Passed`:** close the open `Gate: <name>` issue with a comment linking the commit that marked it, then dispatch `atlas design-next`.
+- **Newly `Failed`:** close the `Gate: <name>` issue with a comment pointing to a new issue that recommends a re-plan with Atlas (or a return to Lens), and do nothing else.
 
 ## `status`
 
