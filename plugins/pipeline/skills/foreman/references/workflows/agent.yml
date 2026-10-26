@@ -55,7 +55,8 @@ jobs:
       - id: agent
         uses: anthropics/claude-code-action@v1
         env:
-          CLAUDE_CODE_EFFORT_LEVEL: medium   # low | medium | high | xhigh | max | auto
+          # Atlas plans once per epic, so it gets high; Anvil and Assay use medium. Values: low | medium | high | xhigh | max | auto
+          CLAUDE_CODE_EFFORT_LEVEL: ${{ github.event.inputs.agent == 'atlas' && 'high' || 'medium' }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
