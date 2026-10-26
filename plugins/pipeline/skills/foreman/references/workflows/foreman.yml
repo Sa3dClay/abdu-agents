@@ -18,14 +18,12 @@ on:
         required: false
         default: ""
   pull_request:
-    types: [closed]                 # design PR merged → start
-  pull_request_review:
-    types: [submitted]              # epic PR approved → accept; changes requested → feedback
+    types: [closed]                 # design PR merged → start; epic review-pack PR merged → accept
   issue_comment:
-    types: [created]                # "/foreman next E01" or "/foreman feedback E01"
+    types: [created]                # "/foreman next|accept|feedback|status E01"
   push:
     branches: [main]
-    paths: ["docs/plan.md"]         # gate results → gate-check
+    paths: ["docs/plan.md"]         # gate row edited → gate-check (other plan.md changes are ignored)
   schedule:
     - cron: "17 */3 * * *"          # resume after failures or usage limits
 
@@ -50,8 +48,11 @@ jobs:
           IN_EPIC: ${{ github.event.inputs.epic }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
           PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-          REVIEW_STATE: ${{ github.event.review.state }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
           COMMENT: ${{ github.event.comment.body }}
           ACTOR: ${{ github.actor }}
           OWNER: ${{ github.repository_owner }}
@@ -70,19 +71,23 @@ jobs:
                   cmd="next"; break
                 fi
               done ;;
-            push) cmd="gate-check" ;;
+            push)
+              # Only a changed gate row (e.g. "| — | **Gate 1** | … | Passed |") wakes Foreman; epic merges and status edits don't.
+              if gh api "repos/$REPO/compare/$BEFORE...$AFTER" \
+                   --jq '.files[] | select(.filename == "docs/plan.md") | .patch' 2>/dev/null \
+                 | grep -qE '^[+-]\|.*\*\*Gate'; then
+                cmd="gate-check"; fi ;;
             pull_request)
-              if [ "$PR_MERGED" = "true" ] && echo "$PR_LABELS" | grep -q '"design"'; then
-                cmd="start"; epic="$(id_from_branch "$PR_HEAD")"; fi ;;
-            pull_request_review)
-              if [ "$ACTOR" = "$OWNER" ] && [[ "$PR_HEAD" == epic/* ]]; then
-                epic="$(id_from_branch "$PR_HEAD")"
-                [ "$REVIEW_STATE" = "approved" ] && cmd="accept"
-                [ "$REVIEW_STATE" = "changes_requested" ] && cmd="feedback"
+              if [ "$PR_MERGED" = "true" ]; then
+                if echo "$PR_LABELS" | grep -q '"design"'; then
+                  cmd="start"; epic="$(id_from_branch "$PR_HEAD")"
+                elif [[ "$PR_HEAD" == epic/* ]] && [ "$PR_BASE" = "$DEFAULT_BRANCH" ]; then
+                  cmd="accept"; epic="$(id_from_branch "$PR_HEAD")"   # merging the review pack = accepting the epic
+                fi
               fi ;;
             issue_comment)
               COMMENT="${COMMENT#"${COMMENT%%[![:space:]]*}"}"   # ignore leading spaces/newlines
-              if [ "$ACTOR" = "$OWNER" ] && [[ "$COMMENT" =~ ^/foreman[[:space:]]+(next|feedback|status)([[:space:]]+(E[0-9]+))? ]]; then
+              if [ "$ACTOR" = "$OWNER" ] && [[ "$COMMENT" =~ ^/foreman[[:space:]]+(next|accept|feedback|status)([[:space:]]+(E[0-9]+))? ]]; then
                 cmd="${BASH_REMATCH[1]}"; epic="${BASH_REMATCH[3]}"; fi ;;
           esac
           echo "command=$cmd" >> "$GITHUB_OUTPUT"

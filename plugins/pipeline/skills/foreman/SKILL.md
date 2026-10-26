@@ -21,9 +21,9 @@ Your arguments name the command, e.g. `next --epic E01 --previous failure --unat
 | `status` | The founder asks where things stand | Interactive or unattended |
 | `start --epic E0X` | The founder merged the epic's design PR | Unattended |
 | `next --epic E0X [--previous success\|failure]` | After every agent run, on resume, and on schedule | Unattended |
-| `accept --epic E0X` | The founder approved the epic's review-pack PR | Unattended |
-| `feedback --epic E0X` | The founder requested changes on the review pack | Unattended |
-| `gate-check` | `docs/plan.md` changed on the default branch | Unattended |
+| `accept --epic E0X` | The founder merged the epic's review-pack PR (or commented `/foreman accept E0X`) | Unattended |
+| `feedback --epic E0X` | The founder commented `/foreman feedback E0X` on the review pack | Unattended |
+| `gate-check` | A gate row in `docs/plan.md` changed on the default branch | Unattended |
 
 In unattended mode, never ask questions. Anything that needs the founder goes into an issue or PR comment that @mentions the repo owner, and then you stop.
 
@@ -107,14 +107,21 @@ Then exit.
 ## Review pack
 
 1. Dispatch the project CI on the epic branch (`gh workflow run <ci file> --ref epic/...`), and wait for it to finish (`gh run watch`). If it fails, open or update the issue `Foreman: E0X build failed`, link the run, and stop. If it passes and that issue is open, close it with a comment linking the passing run.
-2. Open or update a PR from the epic branch into the default branch: title `Epic E0X: <title>`, label `epic`, with this body:
+2. **Write the accepted state into the epic branch**, so that merging the PR is the acceptance and nothing has to be committed to the default branch afterwards:
+   - set every `Verified` task to `Done`;
+   - tick its `[manual]` criteria, adding the note "confirmed by founder on merge of the review pack";
+   - set the epic to `Done` in its file and in `plan.md`;
+   - commit (`foreman: E0X review pack, Done on merge`) and push.
+   Until the PR is merged, the default branch still shows the epic `In progress`; that is the true state.
+3. Open or update a PR from the epic branch into the default branch: title `Epic E0X: <title>`, label `epic`, with this body:
 
 ```markdown
 ## Epic E0X: [title], ready for your review
 
 @[owner] everything below was built, reviewed and tested by the agents.
-Tick each manual check, then **Approve** this PR to accept the epic (Foreman merges it),
-or **Request changes** with your feedback (Atlas turns it into fix tasks).
+Go through the manual checks (tick them as you go), then **merge this PR** to accept the epic:
+the branch already marks every task and the epic `Done`, so the merge records your sign-off.
+For changes instead, comment `/foreman feedback E0X` with your feedback (Atlas turns it into fix tasks).
 
 ### What was built
 - [epic acceptance criterion]: ✅ covered by E0X-TNN (or ⚠️ partly, see notes)
@@ -138,29 +145,31 @@ or **Request changes** with your feedback (Atlas turns it into fix tasks).
 Tasks: N verified · fix rounds: N · agent runs: N · [runs log](docs/foreman/E0X-runs.md)
 ```
 
-3. Set the epic to `In review` in `plan.md`, commit, and stop.
+4. Stop.
 
-## `accept --epic E0X` (the founder approved the review-pack PR)
+## `accept --epic E0X` (the founder merged the review-pack PR)
 
-1. Read the PR body. If any manual check is unticked, comment asking the founder to tick it or say why it's waived, then stop.
-2. On the epic branch:
-   - set every `Verified` task to `Done`;
-   - tick its `[manual]` criteria, adding a note "confirmed by founder in PR #n";
-   - set the epic to `Done` and update `plan.md`;
-   - commit and push.
-3. Merge the PR: `gh pr merge <n> --merge --delete-branch`.
-4. Look at the next roadmap row in `plan.md`:
+Merging is the founder's sign-off, including any manual check left unticked in the PR body. Never commit to the default branch here; the merge already carried the `Done` state.
+
+1. Find the epic's review-pack PR.
+   - **Merged:** continue.
+   - **Open** (the founder commented `/foreman accept E0X` instead of merging): make sure the epic branch carries the `Done` state (Review pack step 2), then merge it with `gh pr merge <n> --merge --delete-branch`.
+   - **None, or closed without merging:** comment on the latest Foreman issue or PR that there is nothing to accept, and stop.
+2. Check that `plan.md` on the default branch shows the epic `Done`. If it doesn't (a pack built before this rule), open a PR `foreman: mark E0X Done` with only the status changes, @mention the owner to merge it, and stop; merging it doesn't trigger anything, so the founder then comments `/foreman accept E0X`.
+3. Delete the epic branch if it still exists. Close any open `Foreman: E0X …` issues with a comment linking the merged PR.
+4. **Don't repeat work:** if the next epic already has a `design/` branch, an open `Design:` PR, or a status past `Approved`, or the `Gate: <name>` issue is already open, stop.
+5. Look at the next roadmap row in `plan.md`:
    - **A gate not marked passed:** open the issue `Gate: <name>` explaining the experiment, its pass threshold, and that editing the gate row to `Passed` or `Failed` on the default branch continues the pipeline. Stop.
    - **An `Approved` epic:** dispatch `atlas` with `args="design-next"` and `ref` set to the default branch.
    - **Nothing left:** comment that the plan is complete.
 
 ## `feedback --epic E0X` (the founder requested changes)
 
-Dispatch `atlas` with `args="amend E0X"` on the epic branch, and set the epic back to `In progress`. When Atlas finishes, the agent workflow dispatches `next`. The new fix tasks run, and the review pack is rebuilt.
+On the epic branch, undo the pre-set acceptance from the review pack: set tasks that were `Done` back to `Verified`, untick the `[manual]` criteria that carry the "confirmed by founder on merge" note, and set the epic back to `In progress` in its file and in `plan.md`. Commit, push, then dispatch `atlas` with `args="amend E0X"` on the epic branch. When Atlas finishes, the agent workflow dispatches `next`. The new fix tasks run, and the review pack is rebuilt.
 
 ## `gate-check`
 
-Read the gate rows in `plan.md` on the default branch:
+The router only sends this when the push changed a gate row in `plan.md`. Read the gate rows on the default branch:
 
 - **Newly `Passed`:** close the open `Gate: <name>` issue with a comment linking the commit that marked it, then dispatch `atlas design-next`.
 - **Newly `Failed`:** close the `Gate: <name>` issue with a comment pointing to a new issue that recommends a re-plan with Atlas (or a return to Lens), and do nothing else.
@@ -180,8 +189,8 @@ Summarise in five lines or fewer:
 - Writes or edits product code, tests, designs or tasks (other than Status mirrors and its runs log)
 - Reviews code or overrides Assay's verdict
 - Runs two agents at once, or runs an agent's work in its own context
-- Pushes to or merges into the default branch, except merging an epic PR the founder approved
-- Continues past a gate, a blocked task's dependents, or an unticked manual check
+- Pushes to or merges into the default branch, except merging an epic PR when the founder commented `/foreman accept E0X`
+- Continues past a gate or a blocked task's dependents
 - Asks questions in unattended mode instead of writing them to an issue or PR
 
 ## Tone
