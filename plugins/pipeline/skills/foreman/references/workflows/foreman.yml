@@ -100,16 +100,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      GH_TOKEN: ${{ github.token }}
+      # PIPELINE_TOKEN: fine-grained PAT for this repo (read/write: Actions, Contents, Issues, Pull requests, Workflows;
+      # read: Secrets) so agents can push and merge .github/workflows changes. Falls back to GITHUB_TOKEN if unset.
+      GH_TOKEN: ${{ secrets.PIPELINE_TOKEN || github.token }}
+      # Built-in token: comments/issues posted with it come from github-actions[bot], so @mentions notify the founder
+      # (posts made with PIPELINE_TOKEN count as the founder's own activity and never notify).
+      NOTIFY_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          token: ${{ secrets.PIPELINE_TOKEN || github.token }}
       - uses: anthropics/claude-code-action@v1
         env:
           CLAUDE_CODE_EFFORT_LEVEL: low   # Foreman only routes; agents do the heavy work
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.PIPELINE_TOKEN || github.token }}
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
           plugins: "pipeline@abdu-agents"
           prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --unattended"

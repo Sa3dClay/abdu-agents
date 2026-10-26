@@ -35,12 +35,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      GH_TOKEN: ${{ github.token }}
+      # PIPELINE_TOKEN: see foreman.yml. Falls back to GITHUB_TOKEN if unset.
+      GH_TOKEN: ${{ secrets.PIPELINE_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.ref }}
           fetch-depth: 0
+          token: ${{ secrets.PIPELINE_TOKEN || github.token }}
 
       # ---- Toolchain block: project-specific. Keep in sync with the project's CI. ----
       # Example for an Expo / React Native + Kotlin project:
@@ -59,6 +61,7 @@ jobs:
           CLAUDE_CODE_EFFORT_LEVEL: ${{ github.event.inputs.agent == 'atlas' && 'high' || 'medium' }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.PIPELINE_TOKEN || github.token }}
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
           plugins: "pipeline@abdu-agents"
           prompt: "/pipeline:${{ github.event.inputs.agent }} ${{ github.event.inputs.args }} --unattended"

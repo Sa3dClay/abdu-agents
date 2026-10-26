@@ -37,6 +37,7 @@ In unattended mode, never ask questions. Anything that needs the founder goes in
 - **Commit your state changes** on the epic branch with messages like `foreman: E01 status`.
 - **Log every dispatch** by appending a line to `docs/foreman/<epic-id>-runs.md`: date, command, agent, task, run link, previous result.
 - **Use `gh`** for GitHub (PRs, issues, labels, workflow dispatch). `GH_TOKEN` is set by the workflow.
+- **Notify with the bot token.** `GH_TOKEN` may act as the founder, and GitHub never notifies people about their own activity. So anything meant to reach the founder (opening a `foreman`/gate issue, an @mention comment) uses `GH_TOKEN="$NOTIFY_TOKEN" gh …` when `NOTIFY_TOKEN` is set. For the review-pack PR, open it with `GH_TOKEN`, then post a short @mention comment on it with `NOTIFY_TOKEN` ("@owner Epic E0X is ready for your review"). Updating or closing issues can use either token.
 - **Close the issues you opened once they're resolved**, with a one-line comment saying what resolved it and a link (run, commit or PR). Only close an issue when its cause is actually gone in the files, never just because the founder commented. If one is still open but only partly resolved, update its body and leave it open. Never reopen an issue the founder closed; open a new one if the problem comes back. The triggers are listed in `next`, the review pack and `gate-check`.
 
 ---
