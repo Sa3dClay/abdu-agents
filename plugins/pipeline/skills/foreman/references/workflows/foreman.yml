@@ -29,10 +29,6 @@ on:
   schedule:
     - cron: "17 */3 * * *"          # resume after failures or usage limits
 
-concurrency:
-  group: foreman                    # shared with agent.yml: one pipeline step at a time
-  cancel-in-progress: false
-
 permissions:
   contents: write
   pull-requests: write
@@ -96,6 +92,11 @@ jobs:
   foreman:
     needs: route
     if: needs.route.outputs.command != ''
+    # Concurrency on this job only, so events the router ignores (e.g. Foreman's own PR comments and merges)
+    # never queue and can't cancel a pending real step. Shared with agent.yml: one pipeline step at a time.
+    concurrency:
+      group: foreman
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
