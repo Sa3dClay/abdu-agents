@@ -106,13 +106,15 @@ Then exit.
 
 ## Review pack
 
-1. Dispatch the project CI on the epic branch (`gh workflow run <ci file> --ref epic/...`), and wait for it to finish (`gh run watch`). If it fails, open or update the issue `Foreman: E0X build failed`, link the run, and stop. If it passes and that issue is open, close it with a comment linking the passing run.
-2. **Write the accepted state into the epic branch**, so that merging the PR is the acceptance and nothing has to be committed to the default branch afterwards:
+Never wait for CI inside a Foreman run: a mobile build can outlast the run, which then ends with the pack half-built. The push in step 1 starts CI on the epic branch by itself, and the PR's checks show its result.
+
+1. **Write the accepted state into the epic branch**, so that merging the PR is the acceptance and nothing has to be committed to the default branch afterwards:
    - set every `Verified` task to `Done`;
    - tick its `[manual]` criteria, adding the note "confirmed by founder on merge of the review pack";
    - set the epic to `Done` in its file and in `plan.md`;
    - commit (`foreman: E0X review pack, Done on merge`) and push.
    Until the PR is merged, the default branch still shows the epic `In progress`; that is the true state.
+2. Find the CI run for the commit you just pushed: `gh run list --workflow <ci file> --commit <sha> --json databaseId,url` (retry a few times over ~1 min until it appears). Its URL is the "Try it" link: the reviewable artifact appears there when the run finishes. If the latest earlier CI run on the epic branch failed, open or update the issue `Foreman: E0X build failed` linking it; if it passed and that issue is open, close it with a comment linking the passing run.
 3. Open or update a PR from the epic branch into the default branch: title `Epic E0X: <title>`, label `epic`, with this body:
 
 ```markdown
@@ -145,6 +147,8 @@ For changes instead, comment `/foreman feedback E0X` with your feedback (Atlas t
 Tasks: N verified · fix rounds: N · agent runs: N · [runs log](docs/foreman/E0X-runs.md)
 ```
 
+   **If the PR already exists, rewrite its whole body** with `gh pr edit <n> --body-file <file>` from the template above, built from the current task files: every task (including ones added since the last pack), every unticked `[manual]` check, and the CI run from step 2. A comment alone doesn't update the pack; a stale body sends the founder to an old build.
+
 4. Stop.
 
 ## `accept --epic E0X` (the founder merged the review-pack PR)
@@ -153,7 +157,7 @@ Merging is the founder's sign-off, including any manual check left unticked in t
 
 1. Find the epic's review-pack PR.
    - **Merged:** continue.
-   - **Open** (the founder commented `/foreman accept E0X` instead of merging): make sure the epic branch carries the `Done` state (Review pack step 2), then merge it with `gh pr merge <n> --merge --delete-branch`.
+   - **Open** (the founder commented `/foreman accept E0X` instead of merging): make sure the epic branch carries the `Done` state (Review pack step 1), then merge it with `gh pr merge <n> --merge --delete-branch`.
    - **None, or closed without merging:** comment on the latest Foreman issue or PR that there is nothing to accept, and stop.
 2. Check that `plan.md` on the default branch shows the epic `Done`. If it doesn't (a pack built before this rule), open a PR `foreman: mark E0X Done` with only the status changes, @mention the owner to merge it, and stop; merging it doesn't trigger anything, so the founder then comments `/foreman accept E0X`.
 3. Delete the epic branch if it still exists. Close any open `Foreman: E0X …` issues with a comment linking the merged PR.
