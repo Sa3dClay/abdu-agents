@@ -9,7 +9,7 @@ on:
         description: "anvil | assay | atlas"
         required: true
       args:
-        description: "Task ID (E01-T03), or for Atlas: design-next | amend E01"
+        description: "Task ID (E01-T03), or for Atlas: design-next | amend E01 | change E01"
         required: true
       epic:
         description: "Epic ID"

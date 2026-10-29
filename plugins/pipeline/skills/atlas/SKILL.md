@@ -306,7 +306,7 @@ Commands the founder runs to build, migrate or verify the result (and to check `
 
 ## Unattended mode
 
-Foreman runs you in CI with `--unattended` and one of two jobs. Nobody is there to answer, so never ask questions. Instead, write them into the pull request description for the founder.
+Foreman runs you in CI with `--unattended` and one of three jobs. Nobody is there to answer, so never ask questions. Instead, write them into the pull request description for the founder.
 
 ### `design-next`: design the next epic after one is accepted
 
@@ -318,7 +318,20 @@ Foreman runs you in CI with `--unattended` and one of two jobs. Nobody is there 
 
 ### `amend`: turn review feedback into fix tasks
 
-The founder left feedback on an epic's review pack. Read the feedback and the epic. For each actionable point, add a task (next free number, `Status: Ready`, `Depends on` as needed) in the normal format, and append a short "Feedback round N" note to the design. Commit on the epic branch. Don't change Verified tasks' code yourself. If the feedback changes scope or a recorded decision, don't add tasks: set the epic's open question in the pull request and stop.
+The founder left feedback on an epic's review pack. Read the oldest `pending` entry of kind `feedback` in `docs/foreman/E0X-requests.md`, and the epic. When you finish, mark that entry `processed` and add one line under it listing the tasks you added (or the open question you raised). For each actionable point, add a task (next free number, `Status: Ready`, `Depends on` as needed) in the normal format, and append a short "Feedback round N" note to the design. Commit on the epic branch. Don't change Verified tasks' code yourself. If the feedback changes scope or a recorded decision, don't add tasks: set the epic's open question in the pull request and stop. (The founder confirms such changes with `/foreman change`, which runs `change` below.)
+
+### `change`: plan a founder-decided change into the running epic
+
+The oldest `pending` entry of kind `change` in `docs/foreman/E0X-requests.md` is a decision the founder has already made: a scope addition, a different provider or library, a reversed decision. Don't re-argue it. Plan it with the same care as Stage 2.
+
+1. **Read** the request, the epic, its design, `decisions.md`, every task file of the epic (including Build and Review reports) and the current code it touches.
+2. **Check it fits.** If it changes the product's goal or a decision recorded in the brief, don't plan it: write in the review-pack PR (or a `foreman` issue if there's no PR) that it needs Lens, what exactly conflicts, and stop. If one point is genuinely ambiguous, make the most reasonable call and list it under "Decisions for you" in your summary; don't stop for it.
+3. **Verify time-sensitive facts** (SDK versions, prices, quotas, terms of service) as in the ground rules, and cite them.
+4. **Record the decision.** Add the next `D` entry to `decisions.md` with context, options, decision, consequences and sources. For each decision it replaces, keep the entry and add `**Superseded by Dnn (date).**` under its title.
+5. **Update the plan documents.** Append `## Scope change N (<date>, founder, request R<N>)` to the design (what changed, why, what's replaced) and fix any sections it makes wrong (Out of Scope, Security & Privacy, Key Decisions). Update the epic's acceptance criteria if they change. If a rule in the project's `CLAUDE.md` now conflicts, update that line and say so in the summary.
+6. **Write the tasks** in the normal format: next free numbers, `Status: Ready`, `Depends on` as needed, a test list, and NOT in scope. Never edit Verified or Done tasks' code or reports; a new task replaces or reworks their code and names which task it supersedes. Put any account, key, secret or console setup under **Founder only** in "Before you start", exactly as the founder must do it, with the secret names the task checks.
+7. **Mirror** the new tasks in `plan.md` and the design's task list. Mark the request `processed` with one line listing the decision and tasks. Commit on the epic branch (`atlas: E0X change R<N>`).
+8. **Tell the founder.** Comment on the epic's review-pack PR (or the `foreman` issue): a plain-language summary, the new tasks, Decisions for you, the founder-only setup steps, and open risks.
 
 ---
 

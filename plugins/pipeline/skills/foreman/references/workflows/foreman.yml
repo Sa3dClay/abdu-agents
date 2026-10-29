@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "start | next | accept | feedback | gate-check | status"
+        description: "start | next | accept | feedback | change | gate-check | status"
         required: true
         default: next
       epic:
@@ -40,6 +40,7 @@ jobs:
     outputs:
       command: ${{ steps.r.outputs.command }}
       epic: ${{ steps.r.outputs.epic }}
+      comment: ${{ steps.r.outputs.comment }}
     steps:
       - id: r
         env:
@@ -54,12 +55,13 @@ jobs:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
           COMMENT: ${{ github.event.comment.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           ACTOR: ${{ github.actor }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          cmd=""; epic=""
+          cmd=""; epic=""; comment=""
           id_from_branch() { echo "$1" | sed -nE 's#^(design|epic)/(e[0-9]+)-.*#\2#p' | tr a-z A-Z; }
           case "$EVENT" in
             workflow_dispatch) cmd="$IN_COMMAND"; epic="$IN_EPIC" ;;
@@ -87,11 +89,12 @@ jobs:
               fi ;;
             issue_comment)
               COMMENT="${COMMENT#"${COMMENT%%[![:space:]]*}"}"   # ignore leading spaces/newlines
-              if [ "$ACTOR" = "$OWNER" ] && [[ "$COMMENT" =~ ^/foreman[[:space:]]+(next|accept|feedback|status)([[:space:]]+(E[0-9]+))? ]]; then
-                cmd="${BASH_REMATCH[1]}"; epic="${BASH_REMATCH[3]}"; fi ;;
+              if [ "$ACTOR" = "$OWNER" ] && [[ "$COMMENT" =~ ^/foreman[[:space:]]+(next|accept|feedback|change|status)([[:space:]]+(E[0-9]+))? ]]; then
+                cmd="${BASH_REMATCH[1]}"; epic="${BASH_REMATCH[3]}"; comment="$COMMENT_ID"; fi ;;
           esac
           echo "command=$cmd" >> "$GITHUB_OUTPUT"
           echo "epic=$epic" >> "$GITHUB_OUTPUT"
+          echo "comment=$comment" >> "$GITHUB_OUTPUT"
           echo "Routed $EVENT → '${cmd:-none}' ${epic}"
 
   foreman:
@@ -124,5 +127,5 @@ jobs:
           github_token: ${{ secrets.PIPELINE_TOKEN || github.token }}
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
           plugins: "pipeline@abdu-agents"
-          prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --unattended"
+          prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --comment '${{ needs.route.outputs.comment }}' --unattended"
           claude_args: '--model claude-sonnet-5-5 --max-turns 80 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'

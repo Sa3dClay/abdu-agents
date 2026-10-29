@@ -13,7 +13,7 @@ The pipeline's state lives only in files and git: `docs/plan.md`, the epic, desi
 
 ## Commands
 
-Your arguments name the command, e.g. `next --epic E01 --previous failure --unattended`.
+Your arguments name the command, e.g. `next --epic E01 --previous failure --unattended`. Commands started by a founder comment also get `--comment <id>`: the ID of that issue or PR comment.
 
 | Command | When | Mode |
 |---|---|---|
@@ -22,7 +22,8 @@ Your arguments name the command, e.g. `next --epic E01 --previous failure --unat
 | `start --epic E0X` | The founder merged the epic's design PR | Unattended |
 | `next --epic E0X [--previous success\|failure]` | After every agent run, on resume, and on schedule | Unattended |
 | `accept --epic E0X` | The founder merged the epic's review-pack PR (or commented `/foreman accept E0X`) | Unattended |
-| `feedback --epic E0X` | The founder commented `/foreman feedback E0X` on the review pack | Unattended |
+| `feedback --epic E0X --comment <id>` | The founder commented `/foreman feedback E0X <feedback>` on the review pack | Unattended |
+| `change --epic E0X --comment <id>` | The founder commented `/foreman change E0X <request>`: a decided change to a running epic (scope, a recorded decision, a provider) | Unattended |
 | `gate-check` | A gate row in `docs/plan.md` changed on the default branch | Unattended |
 
 In unattended mode, never ask questions. Anything that needs the founder goes into an issue or PR comment that @mentions the repo owner, and then you stop.
@@ -167,9 +168,34 @@ Merging is the founder's sign-off, including any manual check left unticked in t
    - **An `Approved` epic:** dispatch `atlas` with `args="design-next"` and `ref` set to the default branch.
    - **Nothing left:** comment that the plan is complete.
 
-## `feedback --epic E0X` (the founder requested changes)
+## Founder requests (`feedback` and `change`)
 
-On the epic branch, undo the pre-set acceptance from the review pack: set tasks that were `Done` back to `Verified`, untick the `[manual]` criteria that carry the "confirmed by founder on merge" note, and set the epic back to `In progress` in its file and in `plan.md`. Commit, push, then dispatch `atlas` with `args="amend E0X"` on the epic branch. When Atlas finishes, the agent workflow dispatches `next`. The new fix tasks run, and the review pack is rebuilt.
+Both commands carry the founder's words to Atlas through a file, so the agent run never depends on chat or event payloads:
+
+1. Read the comment: `gh api repos/{owner}/{repo}/issues/comments/<id> --jq '.body,.html_url,.user.login'`. If its author isn't the repo owner, stop. The text after `/foreman <command> E0X` is the request; if it's empty, reply on that thread asking for it, then stop.
+2. Append an entry to `docs/foreman/E0X-requests.md` on the epic branch (create it with a one-line header if missing):
+
+   ```markdown
+   ## R<N>: <feedback | change> (<date>) · pending
+   Source: <comment html_url> · by @<owner>
+
+   > <the request, verbatim, every line quoted>
+   ```
+
+   `N` is the next free number. Atlas changes `pending` to `processed` when it's done.
+3. Continue with the command's section below. In the dispatch log line, name the request (`R<N>`).
+
+## `feedback --epic E0X --comment <id>` (the founder requested changes)
+
+Record the request (above). On the epic branch, undo the pre-set acceptance from the review pack: set tasks that were `Done` back to `Verified`, untick the `[manual]` criteria that carry the "confirmed by founder on merge" note, and set the epic back to `In progress` in its file and in `plan.md`. Commit, push, then dispatch `atlas` with `args="amend E0X"` on the epic branch. When Atlas finishes, the agent workflow dispatches `next`. The new fix tasks run, and the review pack is rebuilt.
+
+## `change --epic E0X --comment <id>` (the founder decided a change to the epic)
+
+The founder has already made the decision; Atlas plans it, it doesn't re-ask it.
+
+1. Check the epic is `In progress` or `In review`/pre-set `Done` on its epic branch with an open review-pack PR. If the epic is already accepted (merged) or not started, reply on the comment that a change needs a running epic (for a merged one, Atlas plans it into the next epic or a new one), then stop.
+2. Record the request (above). If the review pack's pre-set acceptance is on the branch, undo it exactly as in `feedback`; set the epic to `In progress` in its file and in `plan.md`. Commit (`foreman: E0X change request R<N>`), push.
+3. Dispatch `atlas` with `args="change E0X"` on the epic branch. When Atlas finishes, the agent workflow dispatches `next`: the new tasks run and the review pack is rebuilt.
 
 ## `gate-check`
 

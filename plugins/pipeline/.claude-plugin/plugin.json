@@ -1,6 +1,6 @@
 {
   "name": "pipeline",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Idea-to-build agent pipeline: Lens (idea refinement), Atlas (planning), Anvil (implementation), Assay (review and testing) and Foreman (GitHub Actions orchestration).",
   "author": { "name": "Abdu" },
   "keywords": ["product", "planning", "agents", "orchestration", "github-actions"]
