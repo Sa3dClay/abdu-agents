@@ -29,7 +29,7 @@ on:
     branches: [main]
     paths: ["docs/plan.md"]         # gate row edited → gate-check (other plan.md changes are ignored)
   schedule:
-    - cron: "17 */3 * * *"          # resume after failures or usage limits
+    - cron: "17 4,16 * * *"         # safety net, twice a day (04:17 / 16:17 UTC): resume after usage limits or cut-off runs
 
 permissions:
   contents: write
