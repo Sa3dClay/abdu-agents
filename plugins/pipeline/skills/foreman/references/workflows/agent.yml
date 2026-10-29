@@ -52,6 +52,7 @@ jobs:
       #   with: { distribution: temurin, java-version: "17" }
       # - uses: gradle/actions/setup-gradle@v4
       # - run: npm ci
+      # Give the build steps `if: github.event.inputs.agent != 'atlas'`: Atlas only reads code and writes docs.
       # ---------------------------------------------------------------------------
 
       # Snapshot every branch on GitHub, so the check below can tell whether the agent pushed anything.

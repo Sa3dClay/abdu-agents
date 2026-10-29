@@ -51,7 +51,7 @@ In unattended mode, never ask questions. Anything that needs the founder goes in
    - in `agent.yml`, the **toolchain block**: the exact setup steps this project needs before an agent can build and test it (e.g. Node from `.nvmrc` plus `npm ci`, JDK, Android SDK). Take them from the project's CI file so the two stay in sync.
 3. Check that the project's CI:
    - can be started with `workflow_dispatch`;
-   - skips pushes that only touch `docs/**` (`paths-ignore`), runs on push only for the default branch and `epic/**`, and skips `pull_request` runs whose head is an `epic/*` branch (its pushes already run CI), so state commits don't start and cancel builds;
+   - spends minutes only where they count: pushes to the default branch and `epic/**` only, ignoring `docs/**`; quick checks (lint, types, unit tests) on epic pushes and PRs; the slow native/mobile build only on `workflow_dispatch` (the review pack), the default branch, and PRs that change native code; no `pull_request` run whose head is an `epic/*` branch;
    - builds a reviewable artifact for `epic/*` branches (installable build for mobile; preview deploy or documented local run for web).
    If not, propose the exact change.
 4. Give the founder a checklist of things only they can do, and don't do them yourself:
@@ -109,7 +109,7 @@ Then exit.
 
 ## Review pack
 
-Never wait for CI inside a Foreman run: a mobile build can outlast the run, which then ends with the pack half-built. The push in step 1 starts CI on the epic branch by itself, and the PR's checks show its result.
+Never wait for CI inside a Foreman run: a mobile build can outlast the run, which then ends with the pack half-built. Epic-branch pushes run only the quick checks; the reviewable artifact is built once, by the dispatch in step 2.
 
 1. **Write the accepted state into the epic branch**, so that merging the PR is the acceptance and nothing has to be committed to the default branch afterwards:
    - set every `Verified` task to `Done`;
@@ -117,7 +117,7 @@ Never wait for CI inside a Foreman run: a mobile build can outlast the run, whic
    - set the epic to `Done` in its file and in `plan.md`;
    - commit (`foreman: E0X review pack, Done on merge`) and push.
    Until the PR is merged, the default branch still shows the epic `In progress`; that is the true state.
-2. Find the CI run that builds the reviewable artifact: docs-only pushes (like step 1's) don't start CI, so take the newest `push` run on the epic branch, which built its last code commit: `gh run list --workflow <ci file> --branch <epic branch> --event push -L 1 --json databaseId,url,headSha,status,conclusion`. Its URL is the "Try it" link; if it's still running, say so next to the link (the artifact appears when it finishes). If the latest earlier CI run on the epic branch failed, open or update the issue `Foreman: E0X build failed` linking it; if it passed and that issue is open, close it with a comment linking the passing run.
+2. Start the one artifact build: `gh workflow run <ci file> --ref <epic branch>`, then find that run (`gh run list --workflow <ci file> --branch <epic branch> --event workflow_dispatch -L 1 --json databaseId,url,status`, retrying for ~1 min until it appears). Its URL is the "Try it" link; say it's building (the artifact appears when it finishes) and don't wait for it. If the latest earlier CI run on the epic branch failed, open or update the issue `Foreman: E0X build failed` linking it; if it passed and that issue is open, close it with a comment linking the passing run.
 3. Open or update a PR from the epic branch into the default branch: title `Epic E0X: <title>`, label `epic`, with this body:
 
 ```markdown
