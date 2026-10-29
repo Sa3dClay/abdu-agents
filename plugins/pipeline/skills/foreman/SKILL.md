@@ -13,7 +13,7 @@ The pipeline's state lives only in files and git: `docs/plan.md`, the epic, desi
 
 ## Commands
 
-Your arguments name the command, e.g. `next --epic E01 --previous failure --unattended`. Commands started by a founder comment also get `--comment <id>`: the ID of that issue or PR comment.
+Your arguments name the command, e.g. `next --epic E01 --previous failure --unattended`. Commands started by a founder comment also get `--comment <id>`: the ID of that issue or PR comment. After an agent run, `--note` carries what the agent workflow's own check found (nothing pushed, permission denials, an error ending); treat it as more reliable than the agent's comments.
 
 | Command | When | Mode |
 |---|---|---|
@@ -51,6 +51,7 @@ In unattended mode, never ask questions. Anything that needs the founder goes in
    - in `agent.yml`, the **toolchain block**: the exact setup steps this project needs before an agent can build and test it (e.g. Node from `.nvmrc` plus `npm ci`, JDK, Android SDK). Take them from the project's CI file so the two stay in sync.
 3. Check that the project's CI:
    - can be started with `workflow_dispatch`;
+   - skips pushes that only touch `docs/**` (`paths-ignore`), runs on push only for the default branch and `epic/**`, and skips `pull_request` runs whose head is an `epic/*` branch (its pushes already run CI), so state commits don't start and cancel builds;
    - builds a reviewable artifact for `epic/*` branches (installable build for mobile; preview deploy or documented local run for web).
    If not, propose the exact change.
 4. Give the founder a checklist of things only they can do, and don't do them yourself:
@@ -58,6 +59,7 @@ In unattended mode, never ask questions. Anything that needs the founder goes in
    - run `claude setup-token` and save the token as the `CLAUDE_CODE_OAUTH_TOKEN` repo secret;
    - in repo Settings → Actions → General: enable "Read and write permissions" and "Allow GitHub Actions to create and approve pull requests";
    - create the labels `design`, `epic` and `foreman`;
+   - in repo Settings → General, enable "Automatically delete head branches", so merged task, design and epic branches are cleaned up;
    - optionally protect the default branch with "require a pull request".
 5. Commit the workflow files on a branch and give the founder the commands to push it and open a PR.
 
@@ -73,7 +75,7 @@ In unattended mode, never ask questions. Anything that needs the founder goes in
 
 If `--epic` is empty (e.g. a scheduled run), find the epics whose Status is `In progress`. If there are none, exit quietly. Then check out the epic branch, fetch all branches, and list open PRs.
 
-**Previous run failed** (`--previous failure`): log it. If the same task has three consecutive failed agent runs in the runs log, set it `Blocked` ("agent run failed 3 times, see runs log") and continue below. Otherwise exit without dispatching anything. The scheduled run retries later, which also handles usage limits.
+**Previous run failed** (`--previous failure`): log it, with the `--note` text in the log line. If the same task has three consecutive failed agent runs in the runs log, set it `Blocked` ("agent run failed 3 times, see runs log") and continue below. Otherwise exit without dispatching anything. The scheduled run retries later, which also handles usage limits.
 
 Otherwise decide, in this order, and take the **first** action that applies:
 
@@ -85,7 +87,7 @@ Otherwise decide, in this order, and take the **first** action that applies:
 6. **A task branch was pushed with `In review` but has no PR:** open the PR into the epic branch (title `E0X-TNN: <title>`, body = its Build report), then dispatch `assay`.
 7. **Nothing can run:**
    - **Every task is `Verified` or `Done`:** build the **review pack** (below) and stop.
-   - **Some tasks are `Blocked`, and every remaining task depends on one of them:** open or update the issue `Foreman: E0X needs you` (label `foreman`; reuse the open one, never open a second). List each blocked task, its exact question or missing item, and what is already Verified. @mention the owner, set the epic to `Blocked` in `plan.md`, commit, and stop.
+   - **Some tasks are `Blocked`, and every remaining task depends on one of them:** open or update the issue `Foreman: E0X needs you` (label `foreman`; reuse the open one, never open a second). List each blocked task, its exact question or missing item, the notes from its failed runs, and what is already Verified. @mention the owner, set the epic to `Blocked` in `plan.md`, commit, and stop.
 
 **Dispatching an agent:**
 
@@ -115,7 +117,7 @@ Never wait for CI inside a Foreman run: a mobile build can outlast the run, whic
    - set the epic to `Done` in its file and in `plan.md`;
    - commit (`foreman: E0X review pack, Done on merge`) and push.
    Until the PR is merged, the default branch still shows the epic `In progress`; that is the true state.
-2. Find the CI run for the commit you just pushed: `gh run list --workflow <ci file> --commit <sha> --json databaseId,url` (retry a few times over ~1 min until it appears). Its URL is the "Try it" link: the reviewable artifact appears there when the run finishes. If the latest earlier CI run on the epic branch failed, open or update the issue `Foreman: E0X build failed` linking it; if it passed and that issue is open, close it with a comment linking the passing run.
+2. Find the CI run that builds the reviewable artifact: docs-only pushes (like step 1's) don't start CI, so take the newest `push` run on the epic branch, which built its last code commit: `gh run list --workflow <ci file> --branch <epic branch> --event push -L 1 --json databaseId,url,headSha,status,conclusion`. Its URL is the "Try it" link; if it's still running, say so next to the link (the artifact appears when it finishes). If the latest earlier CI run on the epic branch failed, open or update the issue `Foreman: E0X build failed` linking it; if it passed and that issue is open, close it with a comment linking the passing run.
 3. Open or update a PR from the epic branch into the default branch: title `Epic E0X: <title>`, label `epic`, with this body:
 
 ```markdown

@@ -17,6 +17,10 @@ on:
         description: "Result of the previous agent run (success | failure)"
         required: false
         default: ""
+      note:
+        description: "What the agent workflow's check found (e.g. nothing pushed, permission denials)"
+        required: false
+        default: ""
   pull_request:
     types: [closed]                 # design PR merged → start; epic review-pack PR merged → accept
   issue_comment:
@@ -127,5 +131,5 @@ jobs:
           github_token: ${{ secrets.PIPELINE_TOKEN || github.token }}
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
           plugins: "pipeline@abdu-agents"
-          prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --comment '${{ needs.route.outputs.comment }}' --unattended"
+          prompt: "/pipeline:foreman ${{ needs.route.outputs.command }} --epic '${{ needs.route.outputs.epic }}' --previous '${{ github.event.inputs.previous }}' --comment '${{ needs.route.outputs.comment }}' --note '${{ github.event.inputs.note }}' --unattended"
           claude_args: '--model claude-sonnet-5-5 --max-turns 80 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'

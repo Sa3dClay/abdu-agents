@@ -54,6 +54,10 @@ jobs:
       # - run: npm ci
       # ---------------------------------------------------------------------------
 
+      # Snapshot every branch on GitHub, so the check below can tell whether the agent pushed anything.
+      - name: Snapshot remote branches
+        run: git ls-remote --heads origin | sort > "$RUNNER_TEMP/heads-before"
+
       - id: agent
         uses: anthropics/claude-code-action@v1
         env:
@@ -65,12 +69,43 @@ jobs:
           plugin_marketplaces: "https://github.com/<OWNER>/abdu-agents.git"
           plugins: "pipeline@abdu-agents"
           prompt: "/pipeline:${{ github.event.inputs.agent }} ${{ github.event.inputs.args }} --unattended"
-          claude_args: '--model claude-opus-5-5 --max-turns 200 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"'
+          claude_args: '--model claude-opus-5-5 --max-turns 200 --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch"'
+
+      # Don't trust the agent's own account: every agent run must push something (code, a report or a plan).
+      # Also surface permission denials and errors, which otherwise live only in the run log.
+      - name: Check the agent's work
+        id: check
+        if: always()
+        env:
+          OUTCOME: ${{ steps.agent.outcome }}
+          EXEC_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          git ls-remote --heads origin | sort > "$RUNNER_TEMP/heads-after"
+          result="$OUTCOME"; note=""
+          [ "$OUTCOME" != "success" ] && note="agent step $OUTCOME"
+          if cmp -s "$RUNNER_TEMP/heads-before" "$RUNNER_TEMP/heads-after"; then
+            result=failure; note="${note:+$note; }nothing was pushed to GitHub"
+          fi
+          if [ -n "$EXEC_FILE" ] && [ -f "$EXEC_FILE" ]; then
+            denied=$(jq -r '[.[] | select(.type == "result") | .permission_denials[]?.tool_name]
+              | group_by(.) | map("\(.[0]) x\(length)") | join(", ")' "$EXEC_FILE" 2>/dev/null || true)
+            [ -n "$denied" ] && note="${note:+$note; }permission denials: $denied"
+            ended=$(jq -r '[.[] | select(.type == "result")] | last | select(.is_error == true) | .subtype // empty' "$EXEC_FILE" 2>/dev/null || true)
+            [ -n "$ended" ] && note="${note:+$note; }ended with $ended"
+          fi
+          note=$(printf '%s' "$note" | tr -d "\"'\`$\n" | cut -c1-300)
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          echo "note=$note" >> "$GITHUB_OUTPUT"
+          { echo "### Agent check: $result"; echo "${note:-ok}"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Hand back to Foreman
         if: always()
+        env:
+          RESULT: ${{ steps.check.outputs.result || steps.agent.outcome }}
+          NOTE: ${{ steps.check.outputs.note }}
         run: |
           gh workflow run foreman.yml \
             -f command=next \
             -f epic="${{ github.event.inputs.epic }}" \
-            -f previous="${{ steps.agent.outcome }}"
+            -f previous="$RESULT" \
+            -f note="$NOTE"
