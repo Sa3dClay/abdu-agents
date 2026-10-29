@@ -62,6 +62,7 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
           ACTOR: ${{ github.actor }}
           OWNER: ${{ github.repository_owner }}
+          RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -70,13 +71,25 @@ jobs:
           case "$EVENT" in
             workflow_dispatch) cmd="$IN_COMMAND"; epic="$IN_EPIC" ;;
             schedule)
-              # Only wake Foreman (and spend Claude usage) when some epic branch has an epic In progress.
-              # Blocked epics wait for the founder; failed runs on In-progress epics are retried here.
-              for b in $(gh api "repos/$REPO/branches?per_page=100" --jq '.[].name | select(startswith("epic/"))'); do
-                if gh api "repos/$REPO/contents/docs/plan.md?ref=$b" --jq .content | base64 -d | grep -q '| In progress |'; then
-                  cmd="next"; break
-                fi
-              done ;;
+              # A safety net only. GitHub keeps one queued run per concurrency group and cancels the older one,
+              # so a scheduled run must never queue behind real work: skip if any pipeline run is active or queued.
+              busy=0
+              for wf in foreman.yml agent.yml; do
+                for st in in_progress queued waiting pending; do
+                  n=$(gh api "repos/$REPO/actions/workflows/$wf/runs?status=$st&per_page=5" \
+                        --jq "[.workflow_runs[] | select(.id != $RUN_ID)] | length")
+                  [ "${n:-0}" -gt 0 ] && busy=1
+                done
+              done
+              if [ "$busy" = 1 ]; then echo "Pipeline busy; scheduled run skipped"; else
+                # Only wake Foreman (and spend Claude usage) when an epic branch has its epic In progress,
+                # and name that epic so Foreman doesn't have to guess from the default branch.
+                for b in $(gh api "repos/$REPO/branches?per_page=100" --jq '.[].name | select(startswith("epic/"))'); do
+                  if gh api "repos/$REPO/contents/docs/plan.md?ref=$b" --jq .content | base64 -d | grep -q '| In progress |'; then
+                    cmd="next"; epic="$(id_from_branch "$b")"; break
+                  fi
+                done
+              fi ;;
             push)
               # Only a changed gate row (e.g. "| — | **Gate 1** | … | Passed |") wakes Foreman; epic merges and status edits don't.
               if gh api "repos/$REPO/compare/$BEFORE...$AFTER" \
